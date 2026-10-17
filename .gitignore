@@ -70,3 +70,4 @@ docker-compose.override.yml
 
 # Local updater state
 .auto-update/
+__pycache__/
