@@ -140,6 +140,8 @@ PackyCode provides special discounts for our software users: register using <a h
 
 ## Getting Started
 
+[Set up Claude Code and Codex clients over Tailscale](docs/client-setup.md).
+
 CLIProxyAPI Guides: [https://help.router-for.me/](https://help.router-for.me/)
 
 ## Management API
