@@ -170,6 +170,10 @@ else:
         self.executable('launchctl', '''import json,os,pathlib,sys
 with (pathlib.Path(os.environ['TEST_DEPLOY_ROOT'])/'launchctl.jsonl').open('a') as out:
     print(json.dumps(sys.argv[1:]),file=out)
+marker=pathlib.Path(os.environ['TEST_DEPLOY_ROOT'])/'bootstrap-retried'
+if sys.argv[1]=='bootstrap' and not marker.exists():
+    marker.touch()
+    sys.exit(5)
 ''')
         service = [sys.executable, str(SCRIPTS / 'service.py'), '--label', 'com.example.existing-proxy']
         sp.run([*service, 'install', '--run-dir', str(self.runtime), '--', '--interval', '7',
@@ -186,7 +190,7 @@ with (pathlib.Path(os.environ['TEST_DEPLOY_ROOT'])/'launchctl.jsonl').open('a') 
         sp.run([*service, 'uninstall'], env=self.env, check=True, stdout=sp.DEVNULL)
         self.assertFalse(plist.exists())
         calls = [json.loads(line)[0] for line in (self.root / 'launchctl.jsonl').read_text().splitlines()]
-        self.assertEqual(calls, ['bootout', 'bootstrap', 'bootout', 'bootstrap', 'bootout'])
+        self.assertEqual(calls, ['bootout', 'bootstrap', 'bootstrap', 'bootout', 'bootstrap', 'bootout'])
 
 
 if __name__ == '__main__':

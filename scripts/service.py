@@ -8,9 +8,23 @@ import re
 import shutil
 import subprocess as sp
 import sys
+import time
 
 
 LABEL = 'com.binbandit.cliproxyapi.updater'
+
+
+def bootstrap(domain, plist):
+    # launchd can still be removing a stopped registration when bootout returns.
+    args = ['launchctl', 'bootstrap', domain, str(plist)]
+    for attempt in range(20):
+        result = sp.run(args, capture_output=True, text=True)
+        if result.returncode == 0:
+            return
+        if result.returncode != 5 or attempt == 19:
+            print(result.stderr, file=sys.stderr, end='')
+            raise sp.CalledProcessError(result.returncode, args)
+        time.sleep(0.25)
 
 
 def service_definition(repo, run_dir, state_dir, options, label=LABEL):
@@ -69,13 +83,13 @@ def main():
         temporary.write_bytes(plistlib.dumps(definition))
         temporary.chmod(0o600)
         os.replace(temporary, plist)
-        sp.run(['launchctl', 'bootstrap', domain, str(plist)], check=True)
+        bootstrap(domain, plist)
         print(f'Updater installed and started. Logs: {state_dir / "service.log"}')
         print('Starts at login and restarts on failure. The Mac must be awake and logged in.')
     elif args.action == 'restart':
         # Gracefully stop the supervisor so it can stop its child server.
         sp.run(['launchctl', 'bootout', target], check=True)
-        sp.run(['launchctl', 'bootstrap', domain, str(plist)], check=True)
+        bootstrap(domain, plist)
     elif args.action == 'status':
         result = sp.run(['launchctl', 'print', target])
         if result.returncode:
