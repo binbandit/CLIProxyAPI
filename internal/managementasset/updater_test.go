@@ -4,6 +4,8 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -132,5 +134,24 @@ func TestAutoUpdateSkipReason(t *testing.T) {
 				t.Fatalf("autoUpdateSkipReason() = (%q, %t), want (%q, %t)", gotReason, gotSkip, tt.wantReason, tt.wantSkip)
 			}
 		})
+	}
+}
+
+func TestLocalOnlyManagementAssetNeverDownloads(t *testing.T) {
+	t.Setenv("MANAGEMENT_STATIC_LOCAL_ONLY", "true")
+	directory := t.TempDir()
+	if EnsureLatestManagementHTML(t.Context(), directory, "", "http://invalid.invalid") {
+		t.Fatal("missing local asset must not be reported available")
+	}
+	path := filepath.Join(directory, managementAssetName)
+	if err := os.WriteFile(path, []byte("custom dashboard"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if !EnsureLatestManagementHTML(t.Context(), directory, "", "http://invalid.invalid") {
+		t.Fatal("existing local asset must be available")
+	}
+	data, err := os.ReadFile(path)
+	if err != nil || string(data) != "custom dashboard" {
+		t.Fatalf("local asset changed: %q, %v", data, err)
 	}
 }

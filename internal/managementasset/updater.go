@@ -200,6 +200,11 @@ func EnsureLatestManagementHTML(ctx context.Context, staticDir string, proxyURL 
 		return false
 	}
 	localPath := filepath.Join(staticDir, managementAssetName)
+	// A source-built dashboard is owned by the external update supervisor.
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("MANAGEMENT_STATIC_LOCAL_ONLY")), "true") {
+		info, err := os.Stat(localPath)
+		return err == nil && info.Mode().IsRegular()
+	}
 
 	_, _, _ = sfGroup.Do(localPath, func() (interface{}, error) {
 		lastUpdateCheckMu.Lock()
