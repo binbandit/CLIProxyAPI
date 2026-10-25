@@ -65,6 +65,11 @@ func TestServiceCodexNeverSendsInferenceWithSpendableCredits(t *testing.T) {
 				e, _ := s.coreManager.Executor("codex")
 				request := exec.Request{Model: "gpt-5.4", Payload: []byte(`{"model":"gpt-5.4","input":"test"}`)}
 				opts := exec.Options{SourceFormat: translator.FormatOpenAIResponse, Alt: test.alt}
+				if test.alt == "images/generations" {
+					opts.Alt = ""
+					opts.SourceFormat = translator.FromString("openai-image")
+					opts.Metadata = map[string]any{exec.RequestPathMetadataKey: "/v1/images/generations"}
+				}
 				var err error
 				if test.stream {
 					_, err = e.ExecuteStream(ctx, a, request, opts)
