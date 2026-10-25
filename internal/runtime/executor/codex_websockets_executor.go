@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/router-for-me/CLIProxyAPI/v8/internal/config"
+	"github.com/router-for-me/CLIProxyAPI/v8/internal/runtime/executor/helps"
 	cliproxyauth "github.com/router-for-me/CLIProxyAPI/v8/sdk/cliproxy/auth"
 	cliproxyexecutor "github.com/router-for-me/CLIProxyAPI/v8/sdk/cliproxy/executor"
 	log "github.com/sirupsen/logrus"
@@ -39,8 +40,9 @@ func NewCodexWebsocketsExecutor(cfg *config.Config) *CodexWebsocketsExecutor {
 //
 // For non-websocket downstream requests, it always uses the legacy HTTP implementation.
 type CodexAutoExecutor struct {
-	httpExec *CodexExecutor
-	wsExec   *CodexWebsocketsExecutor
+	subscriptionOnly bool
+	httpExec         *CodexExecutor
+	wsExec           *CodexWebsocketsExecutor
 }
 
 func NewCodexAutoExecutor(cfg *config.Config) *CodexAutoExecutor {
@@ -50,6 +52,17 @@ func NewCodexAutoExecutor(cfg *config.Config) *CodexAutoExecutor {
 	}
 }
 
+// NewSubscriptionOnlyCodexExecutor is the mandatory server policy in this fork.
+// Keep transport executors reusable for protocol tests; server registration must
+// always use this constructor, including config reloads and credential updates.
+func NewSubscriptionOnlyCodexExecutor(cfg *config.Config) *CodexAutoExecutor {
+	e := NewCodexAutoExecutor(cfg)
+	e.subscriptionOnly = true
+	return e
+}
+
+func (e *CodexAutoExecutor) SubscriptionOnly() bool { return e != nil && e.subscriptionOnly }
+
 func (e *CodexAutoExecutor) Identifier() string { return "codex" }
 
 // UsesConfig reports whether the executor was created for cfg.
@@ -58,6 +71,9 @@ func (e *CodexAutoExecutor) UsesConfig(cfg *config.Config) bool {
 }
 
 func (e *CodexAutoExecutor) PrepareRequest(req *http.Request, auth *cliproxyauth.Auth) error {
+	if e.SubscriptionOnly() && !helps.CodexSubscriptionReadOnly(req) {
+		return &helps.CodexSubscriptionError{Reason: "generic forwarding is restricted to quota and model discovery"}
+	}
 	if e == nil || e.httpExec == nil {
 		return nil
 	}
@@ -65,6 +81,9 @@ func (e *CodexAutoExecutor) PrepareRequest(req *http.Request, auth *cliproxyauth
 }
 
 func (e *CodexAutoExecutor) HttpRequest(ctx context.Context, auth *cliproxyauth.Auth, req *http.Request) (*http.Response, error) {
+	if e.SubscriptionOnly() && !helps.CodexSubscriptionReadOnly(req) {
+		return nil, &helps.CodexSubscriptionError{Reason: "generic forwarding is restricted to quota and model discovery"}
+	}
 	if e == nil || e.httpExec == nil {
 		return nil, fmt.Errorf("codex auto executor: http executor is nil")
 	}
@@ -72,6 +91,11 @@ func (e *CodexAutoExecutor) HttpRequest(ctx context.Context, auth *cliproxyauth.
 }
 
 func (e *CodexAutoExecutor) Execute(ctx context.Context, auth *cliproxyauth.Auth, req cliproxyexecutor.Request, opts cliproxyexecutor.Options) (cliproxyexecutor.Response, error) {
+	if e.SubscriptionOnly() {
+		if err := helps.CheckCodexSubscription(ctx, e.httpExec.cfg, auth); err != nil {
+			return cliproxyexecutor.Response{}, err
+		}
+	}
 	if e == nil || e.httpExec == nil || e.wsExec == nil {
 		return cliproxyexecutor.Response{}, fmt.Errorf("codex auto executor: executor is nil")
 	}
@@ -85,6 +109,11 @@ func (e *CodexAutoExecutor) Execute(ctx context.Context, auth *cliproxyauth.Auth
 }
 
 func (e *CodexAutoExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.Auth, req cliproxyexecutor.Request, opts cliproxyexecutor.Options) (*cliproxyexecutor.StreamResult, error) {
+	if e.SubscriptionOnly() {
+		if err := helps.CheckCodexSubscription(ctx, e.httpExec.cfg, auth); err != nil {
+			return nil, err
+		}
+	}
 	if e == nil || e.httpExec == nil || e.wsExec == nil {
 		return nil, fmt.Errorf("codex auto executor: executor is nil")
 	}

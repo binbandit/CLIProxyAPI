@@ -1490,3 +1490,29 @@ func TestAPICallRejectsWhenOnlyIDTokenPresentWithoutRefreshToken(t *testing.T) {
 		t.Fatal("upstream must not be hit when access token cannot be resolved")
 	}
 }
+
+func TestAPICallCodexSubscriptionPolicyBlocksInference(t *testing.T) {
+	manager := coreauth.NewManager(nil, nil, nil)
+	a := &coreauth.Auth{ID: "subscription-account", Provider: "codex", Metadata: map[string]any{"access_token": "must-not-forward"}}
+	a.EnsureIndex()
+	if _, err := manager.Register(context.Background(), a); err != nil {
+		t.Fatal(err)
+	}
+	h := &Handler{authManager: manager}
+	for _, target := range []struct{ method, url string }{
+		{"POST", "https://chatgpt.com/backend-api/codex/responses"},
+		{"POST", "https://api.openai.com/v1/responses"},
+		{"GET", "https://chatgpt.com/backend-api/codex/responses"},
+		{"POST", "https://chatgpt.com/backend-api/wham/rate-limit-reset-credits/consume"},
+	} {
+		data, _ := json.Marshal(map[string]any{"auth_index": a.Index, "method": target.method, "url": target.url, "header": map[string]string{"Authorization": "Bearer $TOKEN$"}})
+		recorder := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(recorder)
+		c.Request = httptest.NewRequest(http.MethodPost, "/v8/management/requests/api-call", strings.NewReader(string(data)))
+		c.Request.Header.Set("Content-Type", "application/json")
+		h.APICall(c)
+		if recorder.Code != http.StatusForbidden || !strings.Contains(recorder.Body.String(), "subscription-only") {
+			t.Fatalf("%s %s: %d %s", target.method, target.url, recorder.Code, recorder.Body.String())
+		}
+	}
+}

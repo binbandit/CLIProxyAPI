@@ -270,12 +270,16 @@ func (s *Service) registerExecutorForAuth(a *coreauth.Auth, forceReplace bool) {
 			existingExecutor, hasExecutor := s.coreManager.Executor("codex")
 			if hasExecutor {
 				existingCodexAutoExecutor, isCodexAutoExecutor := existingExecutor.(*executor.CodexAutoExecutor)
-				if isCodexAutoExecutor && existingCodexAutoExecutor.UsesConfig(cfg) {
+				if isCodexAutoExecutor && existingCodexAutoExecutor.SubscriptionOnly() && existingCodexAutoExecutor.UsesConfig(cfg) {
 					return
 				}
 			}
 		}
-		s.coreManager.RegisterExecutor(executor.NewCodexAutoExecutor(cfg))
+		if s.codexExecutorFactory != nil {
+			s.coreManager.RegisterExecutor(s.codexExecutorFactory(cfg))
+		} else {
+			s.coreManager.RegisterExecutor(executor.NewSubscriptionOnlyCodexExecutor(cfg))
+		}
 		return
 	}
 	// Skip disabled auth entries when (re)binding executors.

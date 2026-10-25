@@ -287,9 +287,12 @@ func TestApplyWatcherConfigUpdate_PreservesExistingWebsocketConnections(t *testi
 			}
 			manager := coreauth.NewManager(nil, nil, nil)
 			service := &Service{
-				cfg:         initialCfg,
-				coreManager: manager,
-				pluginHost:  pluginhost.New(),
+				cfg: initialCfg,
+				// This test exercises local WebSocket transport persistence; production
+				// subscription policy and reload enforcement have separate service tests.
+				codexExecutorFactory: func(c *config.Config) coreauth.ProviderExecutor { return executor.NewCodexAutoExecutor(c) },
+				coreManager:          manager,
+				pluginHost:           pluginhost.New(),
 			}
 			t.Cleanup(func() {
 				sdkAuth.RegisterPluginAuthParser(nil)

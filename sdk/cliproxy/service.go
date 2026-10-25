@@ -54,6 +54,10 @@ type Service struct {
 	// apiKeyProvider handles loading API key-based clients.
 	apiKeyProvider APIKeyClientProvider
 
+	// codexExecutorFactory is an internal test seam for transport lifecycle tests.
+	// Production builders leave it nil and always install the subscription policy.
+	codexExecutorFactory func(*config.Config) coreauth.ProviderExecutor
+
 	// watcherFactory creates file watcher instances.
 	watcherFactory WatcherFactory
 

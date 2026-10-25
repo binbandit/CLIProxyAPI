@@ -16,6 +16,7 @@ import (
 	"github.com/router-for-me/CLIProxyAPI/v8/internal/clienterror"
 	"github.com/router-for-me/CLIProxyAPI/v8/internal/config"
 	"github.com/router-for-me/CLIProxyAPI/v8/internal/runtime/executor"
+	"github.com/router-for-me/CLIProxyAPI/v8/internal/runtime/executor/helps"
 	coreauth "github.com/router-for-me/CLIProxyAPI/v8/sdk/cliproxy/auth"
 	"github.com/router-for-me/CLIProxyAPI/v8/sdk/proxyutil"
 	log "github.com/sirupsen/logrus"
@@ -135,6 +136,20 @@ func (h *Handler) APICall(c *gin.Context) {
 
 	authIndex := firstNonEmptyString(body.AuthIndexSnake, body.AuthIndexCamel, body.AuthIndexPascal)
 	auth := h.authByIndex(authIndex)
+	// This policy also covers the shared legacy handler: an administrative API
+	// call must not bypass the subscription-only gate used for model requests.
+	if auth != nil && strings.EqualFold(strings.TrimSpace(auth.Provider), "codex") {
+		probe := &http.Request{Method: method, URL: parsedURL}
+		for name, value := range body.Header {
+			if strings.EqualFold(name, "host") {
+				probe.Host = strings.TrimSpace(value)
+			}
+		}
+		if !helps.CodexSubscriptionReadOnly(probe) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "codex subscription-only: management forwarding is restricted to quota and model discovery"})
+			return
+		}
+	}
 
 	reqHeaders := body.Header
 	if reqHeaders == nil {

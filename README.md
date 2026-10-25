@@ -2,6 +2,34 @@
 
 English | [中文](README_CN.md) | [日本語](README_JA.md)
 
+## Fork policy: Codex subscription allowance only
+
+This fork never intentionally falls back from Codex subscription allowance to
+account credits. Before each Codex inference request, including streams,
+WebSocket turns, images and compaction, the server reads the account's current
+usage from OpenAI. It requires a verified Plus/Pro allowance and a verified zero
+credit balance. Exhausted limits, missing or failed quota checks, spendable or
+unlimited credits, API keys, SIWC credentials, and custom billing endpoints are
+refused before inference. There is no configuration switch to disable this server
+policy. Another eligible credential may be selected by the normal router.
+
+**An account with credits is blocked even while its subscription has allowance.**
+OpenAI does not document a per-request switch that guarantees no credit spending
+on the existing Codex OAuth connection. Checking only the percentage remaining
+cannot prevent a request or concurrent device from crossing the limit. The
+conservative balance restriction is intentional. The proxy does not buy credits,
+consume reset credits, or enable automatic reload. Generic Codex forwarding is
+limited to known read-only quota, subscription and model discovery endpoints.
+Local token counting and OAuth refresh remain available.
+
+This is a proxy guard, not an OpenAI billing setting. It cannot control direct
+Codex/ChatGPT usage outside this proxy or account changes made after a usage check
+(such as credits being granted or purchased during an in-flight request). Keep
+automatic reload off. A zero-spend guarantee for a credit-bearing account requires
+an enforceable OpenAI-side control; until one is verified, this connection stays
+blocked. See [OpenAI's credit behavior](https://help.openai.com/en/articles/12642688-using-credits-for-flexible-usage-in-chatgpt-personal-plans).
+
+
 If you want to use CLIProxyAPI on your desktop, we recommend our [EasyCLIProxyAPI](https://github.com/router-for-me/EasyCLIProxyAPI) desktop client. It provides a graphical configuration UI, automatic updates, system tray integration, and one-click start/stop for the CLIProxyAPI service.
 
 CLIProxyAPI is a proxy server that provides OpenAI/Gemini/Claude/Codex/Grok compatible API interfaces for CLI.
